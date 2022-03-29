@@ -3,7 +3,7 @@ REPO_PATH="github.com/kubeflow/mpi-operator"
 REL_OSARCH="linux/amd64"
 GitSHA=`git rev-parse HEAD`
 Date=`date "+%Y-%m-%d %H:%M:%S"`
-RELEASE_VERSION?=v0.3.0
+RELEASE_VERSION?=v0.3.1-autoscale
 CONTROLLER_VERSION?=v2
 BASE_IMAGE_SSH_PORT?=2222
 IMG_BUILDER=docker
@@ -16,6 +16,7 @@ LD_FLAGS_V2=" \
     -X '${REPO_PATH}/v2/pkg/version.Built=${Date}'   \
     -X '${REPO_PATH}/v2/pkg/version.Version=${RELEASE_VERSION}'"
 IMAGE_NAME?=mpioperator/mpi-operator
+IMAGE_NAME_LOCAL?=localhost:32000/mpi-operator
 KUBEBUILDER_ASSETS_PATH := $(dir $(abspath $(firstword $(MAKEFILE_LIST))))bin/kubebuilder/bin
 KIND_VERSION=v0.11.1
 # This kubectl version supports -k for kustomization.
@@ -24,6 +25,12 @@ KUBECTL_VERSION=v1.21.4
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
+
+IMAGE_COMMON_BUILD_ARGS?=" \
+	--build-arg version=$(CONTROLLER_VERSION) \
+	--build-arg http_proxy=$(http_proxy) \
+	--build-arg https_proxy=$(https_proxy) \
+	--build-arg no_proxy=$(no_proxy)"
 
 build: all
 
@@ -63,7 +70,8 @@ test_v2: bin/kubebuilder
 # Only works with CONTROLLER_VERSION=v2
 .PHONY: test_e2e
 test_e2e: export TEST_MPI_OPERATOR_IMAGE = ${IMAGE_NAME}:${RELEASE_VERSION}
-test_e2e: bin/kubectl kind images test_images dev_manifest
+test_e2e: bin/kubectl kind images test_images
+test_e2e: dev_manifest
 	cd v2 && go test -tags e2e ./test/e2e/...
 
 .PHONY: dev_manifest
@@ -90,17 +98,21 @@ clean:
 .PHONY: images
 images:
 	@echo "VERSION: ${RELEASE_VERSION}"
-	${IMG_BUILDER} build --build-arg VERSION=${CONTROLLER_VERSION} -t ${IMAGE_NAME}:${RELEASE_VERSION} .
+	${IMG_BUILDER} build \
+		--build-arg version=${CONTROLLER_VERSION} \
+		${IMAGE_COMMON_BUILD_ARGS} \
+		-t ${IMAGE_NAME}:${RELEASE_VERSION} \
+		-t ${IMAGE_NAME_LOCAL}:${RELEASE_VERSION} .
 
 .PHONY: test_images
 test_images:
-	${IMG_BUILDER} build --build-arg port=${BASE_IMAGE_SSH_PORT} -t mpioperator/base build/base
-	${IMG_BUILDER} build -t mpioperator/openmpi build/base -f build/base/openmpi.Dockerfile
-	${IMG_BUILDER} build -t mpioperator/openmpi-builder build/base -f build/base/openmpi-builder.Dockerfile
-	${IMG_BUILDER} build -t mpioperator/mpi-pi:openmpi examples/v2beta1/pi
-	${IMG_BUILDER} build -t mpioperator/intel build/base -f build/base/intel.Dockerfile
-	${IMG_BUILDER} build -t mpioperator/intel-builder build/base -f build/base/intel-builder.Dockerfile
-	${IMG_BUILDER} build -t mpioperator/mpi-pi:intel examples/v2beta1/pi -f examples/v2beta1/pi/intel.Dockerfile
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} --build-arg port=${BASE_IMAGE_SSH_PORT} -t mpioperator/base build/base
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/openmpi build/base -f build/base/openmpi.Dockerfile
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/openmpi-builder build/base -f build/base/openmpi-builder.Dockerfile
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/mpi-pi:openmpi examples/v2beta1/pi
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/intel build/base -f build/base/intel.Dockerfile
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/intel-builder build/base -f build/base/intel-builder.Dockerfile
+	${IMG_BUILDER} build ${IMAGE_COMMON_BUILD_ARGS} -t mpioperator/mpi-pi:intel examples/v2beta1/pi -f examples/v2beta1/pi/intel.Dockerfile
 
 .PHONY: tidy
 tidy:
