@@ -1,0 +1,47 @@
+apiVersion: kubeflow.org/v2autoscale
+kind: MPIJob
+metadata:
+  name: tensorflow-horovod-test
+spec:
+  slotsPerWorker: 4
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - image: localhost:32000/horovod:v0.1.1-autoscale
+            name: mpi-launcher
+            envFrom:
+              - configMapRef:
+                  name: proxy-config
+            command:
+            - horovodrun
+            args:
+            - -np
+            - "4"
+            - --host-discovery-script
+            - /etc/mpi/discover_hosts.sh
+            - python
+            - /examples/elastic/tensorflow2_synthetic_benchmark_elastic_custom.py
+            - --no-cuda
+            resources:
+              limits:
+                cpu: 1
+                memory: 8Gi
+    Worker:
+      replicas: 1
+      template:
+        spec:
+          containers:
+          - image: localhost:32000/horovod:v0.1.1-autoscale
+            name: mpi-worker
+            envFrom:
+              - configMapRef:
+                  name: proxy-config
+            resources:
+              limits:
+                cpu: 4
+                memory: 24Gi
