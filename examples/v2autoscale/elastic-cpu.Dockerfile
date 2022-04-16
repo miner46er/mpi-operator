@@ -1,4 +1,4 @@
-FROM horovod/horovod:0.20.0-tf2.3.0-torch1.6.0-mxnet1.5.0-py3.7-cpu
+FROM horovod/horovod-cpu:latest
 
 # Allow OpenSSH to talk to containers without asking for confirmation
 # by disabling StrictHostKeyChecking.
@@ -12,3 +12,4 @@ RUN sed -i 's/[ #]\(.*StrictHostKeyChecking \).*/ \1no/g' /etc/ssh/ssh_config &&
 RUN pip install kubernetes
 
 COPY tensorflow2_synthetic_benchmark_elastic_custom.py /examples/elastic/
+COPY amoeba /examples/elastic/amoeba

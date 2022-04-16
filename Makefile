@@ -26,11 +26,11 @@ PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 
 CRD_OPTIONS ?= "crd:trivialVersions=true,preserveUnknownFields=false"
 
-IMAGE_COMMON_BUILD_ARGS?=" \
+IMAGE_COMMON_BUILD_ARGS?= \
 	--build-arg version=$(CONTROLLER_VERSION) \
 	--build-arg http_proxy=$(http_proxy) \
 	--build-arg https_proxy=$(https_proxy) \
-	--build-arg no_proxy=$(no_proxy)"
+	--build-arg no_proxy=$(no_proxy)
 
 build: all
 

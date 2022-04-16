@@ -1,4 +1,4 @@
-apiVersion: kubeflow.org/v2autoscale
+apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
   name: tensorflow-horovod-test
@@ -12,7 +12,7 @@ spec:
       template:
         spec:
           containers:
-          - image: localhost:32000/horovod:v0.1.1-autoscale
+          - image: localhost:32000/horovod:v0.1.1-autoscale-cpu
             name: mpi-launcher
             envFrom:
               - configMapRef:
@@ -36,7 +36,7 @@ spec:
       template:
         spec:
           containers:
-          - image: localhost:32000/horovod:v0.1.1-autoscale
+          - image: localhost:32000/horovod:v0.1.1-autoscale-cpu
             name: mpi-worker
             envFrom:
               - configMapRef:
