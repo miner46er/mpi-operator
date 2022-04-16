@@ -1277,6 +1277,13 @@ func (c *MPIJobController) newWorker(mpiJob *kubeflow.MPIJob, index int) *corev1
 	if len(container.Command) == 0 && len(container.Args) == 0 {
 		container.Command = []string{"/usr/sbin/sshd", "-De"}
 	}
+	jobInfoEnvVars := []corev1.EnvVar{
+		{
+			Name:  "K_MPI_JOB_NAME",
+			Value: mpiJob.Name,
+		},
+	}
+	container.Env = append(container.Env, jobInfoEnvVars...)
 	container.Env = append(container.Env, workerEnvVars...)
 	c.setupSSHOnPod(&podTemplate.Spec, mpiJob)
 
@@ -1364,6 +1371,13 @@ func (c *MPIJobController) newLauncherPodTemplate(mpiJob *kubeflow.MPIJob) corev
 		podTemplate.Spec.DNSPolicy = corev1.DNSClusterFirstWithHostNet
 	}
 	container := &podTemplate.Spec.Containers[0]
+	jobInfoEnvVars := []corev1.EnvVar{
+		{
+			Name:  "K_MPI_JOB_NAME",
+			Value: mpiJob.Name,
+		},
+	}
+	container.Env = append(container.Env, jobInfoEnvVars...)
 	container.Env = append(container.Env, launcherEnvVars...)
 	slotsStr := strconv.Itoa(int(*mpiJob.Spec.SlotsPerWorker))
 	switch mpiJob.Spec.MPIImplementation {

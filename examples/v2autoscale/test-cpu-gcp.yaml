@@ -3,7 +3,7 @@ kind: MPIJob
 metadata:
   name: tensorflow-horovod-test
 spec:
-  slotsPerWorker: 4
+  slotsPerWorker: 1
   runPolicy:
     cleanPodPolicy: Running
   mpiReplicaSpecs:
@@ -12,35 +12,34 @@ spec:
       template:
         spec:
           containers:
-          - image: localhost:32000/horovod:v0.1.5-autoscale-cpu
+          - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.12-autoscale-cpu
             name: mpi-launcher
-            envFrom:
-              - configMapRef:
-                  name: proxy-config
             command:
             - horovodrun
             args:
             - -np
-            - "4"
+            - "2"
             - --host-discovery-script
             - /etc/mpi/discover_hosts.sh
             - python
-            - /examples/elastic/tensorflow2_keras_mnist_elastic_test.py
+            - /autoscale/tensorflow2_keras_mnist_elastic_test.py
+            - --autoscale
+            - --autoscale-delta-worker
+            - "2"
             resources:
               limits:
                 cpu: 1
-                memory: 8Gi
+                memory: 2Gi
+          serviceAccountName: ml-autoscaling
     Worker:
       replicas: 2
       template:
         spec:
           containers:
-          - image: localhost:32000/horovod:v0.1.5-autoscale-cpu
+          - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.12-autoscale-cpu
             name: mpi-worker
-            envFrom:
-              - configMapRef:
-                  name: proxy-config
             resources:
               limits:
-                cpu: 4
-                memory: 24Gi
+                cpu: 1
+                memory: 4Gi
+          serviceAccountName: ml-autoscaling

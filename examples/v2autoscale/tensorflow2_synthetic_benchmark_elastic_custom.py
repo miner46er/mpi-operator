@@ -21,6 +21,8 @@ import tensorflow as tf
 import horovod.tensorflow as hvd
 from tensorflow.keras import applications
 
+from amoeba import AmoebaTensorflow
+
 # Benchmark settings
 parser = argparse.ArgumentParser(description='TensorFlow Synthetic Benchmark',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -44,11 +46,18 @@ parser.add_argument('--num-batches-per-commit', type=int, default=1,
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
 
+parser.add_argument('--autoscale', action='store_true', default=False,
+                    help='enables autoscaling')
+
 args = parser.parse_args()
 args.cuda = not args.no_cuda
 
 # Horovod: initialize Horovod.
 hvd.init()
+
+# Amoeba: initialize Amoeba autoscaler.
+if args.autoscale:
+    autoscaler = AmoebaTensorflow()
 
 # Horovod: pin GPU to be used to process local rank (one GPU per process)
 if args.cuda:
@@ -65,6 +74,7 @@ lr = 0.01
 model = getattr(applications, args.model)(weights=None)
 opt = tf.optimizers.SGD(lr * hvd.size())
 
+tf.random.set_seed(13517119)
 data = tf.random.uniform([args.batch_size, 224, 224, 3])
 target = tf.random.uniform([args.batch_size, 1], minval=0, maxval=999, dtype=tf.int64)
 
@@ -128,6 +138,8 @@ def run_benchmark(state):
             time = timeit.timeit(lambda: benchmark_step(state), number=args.num_batches_per_iter)
             img_sec = args.batch_size * args.num_batches_per_iter / time
             log('Iter #%d: %.1f img/sec per %s' % (x, img_sec, device))
+            if args.autoscale:
+                autoscaler.adjust_scaling(img_sec)
             state.img_secs.append(img_sec)
             state.iter = x
             state.commit()

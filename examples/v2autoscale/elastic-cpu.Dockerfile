@@ -11,5 +11,6 @@ RUN sed -i 's/[ #]\(.*StrictHostKeyChecking \).*/ \1no/g' /etc/ssh/ssh_config &&
 
 RUN pip install kubernetes
 
-COPY tensorflow2_synthetic_benchmark_elastic_custom.py /examples/elastic/
-COPY amoeba /examples/elastic/amoeba
+COPY tensorflow2_keras_mnist_elastic_test.py /autoscale/
+COPY tensorflow2_synthetic_benchmark_elastic_custom.py /autoscale/
+COPY amoeba /autoscale/amoeba
