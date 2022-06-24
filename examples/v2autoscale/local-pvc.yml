@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  # any PVC name
+  name: mnist-pvc
+spec:
+  # access mode:
+  # - ReadWriteMany (RW from multi nodes)
+  # - ReadWriteOnce (RW from a node)
+  # - ReadOnlyMany (R from multi nodes)
+  accessModes:
+    - ReadWriteMany
+  # specify microk8s-hostpath
+  storageClassName: microk8s-hostpath
+  resources:
+    requests:
+      # storage size to use
+      storage: 5Gi

@@ -480,6 +480,6 @@ spec:
         - -alsologtostderr
         - --lock-namespace
         - mpi-operator
-        image: localhost:32000/mpi-operator:v0.3.1-autoscale
+        image: localhost:32000/mpi-operator:v0.3.2-autoscale
         name: mpi-operator
       serviceAccountName: mpi-operator

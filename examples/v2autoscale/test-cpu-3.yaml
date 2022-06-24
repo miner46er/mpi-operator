@@ -12,7 +12,7 @@ spec:
       template:
         spec:
           containers:
-            - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.39-autoscale-cpu
+            - image: localhost:32000/horovod:v0.1.45-autoscale-cpu
               name: mpi-launcher
               command:
                 - horovodrun
@@ -47,14 +47,22 @@ spec:
                   memory: 2Gi
           serviceAccountName: ml-autoscaling
     Worker:
-      replicas: 2
+      replicas: 1
       template:
         spec:
           containers:
-            - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.39-autoscale-cpu
+            - image: localhost:32000/horovod:v0.1.45-autoscale-cpu
               name: mpi-worker
+              volumeMounts:
+                - name: my-persistent-volume
+                  mountPath: /root/.keras/datasets
               resources:
                 limits:
                   cpu: 1
                   memory: 2Gi
+          volumes:
+            - name: my-persistent-volume
+              persistentVolumeClaim:
+                # specify PVC name you defined
+                claimName: mnist-pvc
           serviceAccountName: ml-autoscaling

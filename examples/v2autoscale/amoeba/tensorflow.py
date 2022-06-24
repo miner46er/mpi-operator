@@ -2,6 +2,7 @@ import os
 
 import horovod.tensorflow as hvd
 from kubernetes import client as kube_client, config as kube_config
+import time
 
 from .common import *
 
@@ -44,15 +45,31 @@ class AmoebaTensorflow:
         self.delta_worker_size = delta_worker_size
         self.efficiency_lower_limit = efficiency_lower_limit
 
-        self.prev_delta_worker_size = None
-        self.prev_throughput = None
-        self.prev_worker_size = None
+        print("""Initializing AmoebaTensorflow
+        mpijob_name={},
+        min_worker_size={},
+        max_worker_size={},
+        delta_worker_size={},
+        efficiency_threshold={}""".format(
+            mpijob_name,
+            min_worker_size,
+            max_worker_size,
+            delta_worker_size,
+            efficiency_lower_limit
+        ))
+
+        self.__prev_scale_target_size = None
+        self.__prev_delta_worker_size = None
+        self.__prev_throughput = None
+        self.__prev_worker_size = None
 
         self.__scaling_direction = None
         self.__is_optimal = False
 
         kube_config.load_incluster_config()
         self.__mpijob_api = kube_client.CustomObjectsApi()
+
+        self.__autoscaling_attempt = 0
 
     def adjust_scaling(self, cur_throughput: float):
         """
@@ -66,18 +83,19 @@ class AmoebaTensorflow:
         cur_size = hvd.size()
         scale_target = cur_size
 
+        if self.__prev_scale_target_size is not None and cur_size != self.__prev_scale_target_size:
+            return
+
         if self.__scaling_direction is None:
-            if self.max_worker_size is None:
-                # No limit for max workers, so we scale up by delta_worker_size
-                scale_target = cur_size + self.delta_worker_size
-            elif cur_size == self.max_worker_size:
+            if cur_size == self.max_worker_size:
                 # already at max size at first attempt
                 self.__scaling_direction = scaling_direction_down
                 scale_target = max(cur_size - self.delta_worker_size, self.min_worker_size)
-            elif self.prev_delta_worker_size is not None:
+            elif self.__prev_delta_worker_size is not None:
                 # this is the second scaling attempt
-                throughput_efficiency = self.__get_throughput_efficiency(cur_throughput)
-                if throughput_efficiency < self.efficiency_lower_limit:
+                cur_throughput_efficiency = self.__get_throughput_efficiency(cur_throughput)
+                print("throughput_efficiency: {}".format(cur_throughput_efficiency))
+                if cur_throughput_efficiency < self.efficiency_lower_limit:
                     # efficiency is too low, scale down skipping the first size
                     self.__scaling_direction = scaling_direction_down
                     scale_target = max(cur_size - (2 * self.delta_worker_size), self.min_worker_size)
@@ -94,13 +112,10 @@ class AmoebaTensorflow:
 
         elif self.__scaling_direction == scaling_direction_up:
             cur_throughput_efficiency = self.__get_throughput_efficiency(cur_throughput)
+            print("throughput_efficiency: {}".format(cur_throughput_efficiency))
             if cur_throughput_efficiency < self.efficiency_lower_limit:
                 # efficiency is too low, the previous worker size is the optimal worker size
                 scale_target = max(cur_size - self.delta_worker_size, self.min_worker_size)
-                self.__is_optimal = True
-            elif self.prev_worker_size == self.max_worker_size:
-                # already at max size, found optimal worker size
-                scale_target = cur_size
                 self.__is_optimal = True
             else:
                 # keep scaling up
@@ -111,6 +126,7 @@ class AmoebaTensorflow:
 
         elif self.__scaling_direction == scaling_direction_down:
             cur_throughput_efficiency = self.__get_throughput_efficiency(cur_throughput)
+            print("throughput_efficiency: {}".format(cur_throughput_efficiency))
             if cur_throughput_efficiency < self.efficiency_lower_limit:
                 # efficiency is too low, the previous worker size is the optimal worker size
                 if self.max_worker_size is None:
@@ -118,17 +134,23 @@ class AmoebaTensorflow:
                 else:
                     scale_target = min(cur_size + self.delta_worker_size, self.max_worker_size)
                 self.__is_optimal = True
-            elif self.prev_worker_size == self.min_worker_size:
-                # already at min size, found optimal worker size
-                scale_target = cur_size
-                self.__is_optimal = True
             else:
                 # keep scaling down
                 scale_target = max(cur_size - self.delta_worker_size, self.min_worker_size)
 
-        self.prev_throughput = cur_throughput
-        self.prev_worker_size = cur_size
-        self.prev_delta_worker_size = scale_target - cur_size
+        if scale_target == self.min_worker_size or scale_target == self.max_worker_size or scale_target == cur_size:
+            self.__is_optimal = True
+
+        if self.__is_optimal:
+            print("found optimal worker size")
+
+        self.__prev_throughput = cur_throughput
+        self.__prev_worker_size = cur_size
+        self.__prev_delta_worker_size = scale_target - cur_size
+        self.__prev_scale_target_size = scale_target
+        self.__autoscaling_attempt += 1
+        print("autoscaling attempt: {}".format(self.__autoscaling_attempt))
+        print("{}\t| scaling to {} worker(s)".format(time.time(), scale_target))
         self.__scale_worker_size(scale_target)
 
     def __get_throughput_efficiency(self, cur_throughput: float):
@@ -138,10 +160,10 @@ class AmoebaTensorflow:
         :param cur_throughput: The current throughput of the MPIJob.
         :return: The efficiency of the current throughput.
         """
-        delta_throughput = cur_throughput - self.prev_throughput
-        prev_throughput_per_worker = self.prev_throughput / self.prev_worker_size
+        delta_throughput = cur_throughput - self.__prev_throughput
+        prev_throughput_per_worker = self.__prev_throughput / self.__prev_worker_size
 
-        return delta_throughput / self.delta_worker_size / prev_throughput_per_worker
+        return (delta_throughput / self.__prev_delta_worker_size) / prev_throughput_per_worker
 
     def __scale_worker_size(self, worker_size: int):
         """

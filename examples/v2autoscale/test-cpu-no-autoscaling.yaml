@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
-  name: tensorflow-horovod-test
+  name: ta-ardi-test-no-autoscaling-1-node
 spec:
   slotsPerWorker: 1
   runPolicy:
@@ -12,7 +12,7 @@ spec:
       template:
         spec:
           containers:
-            - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.39-autoscale-cpu
+            - image: localhost:32000/horovod:v0.1.45-autoscale-cpu
               name: mpi-launcher
               command:
                 - horovodrun
@@ -29,32 +29,39 @@ spec:
                 - "1"
                 - --batches-per-epoch
                 - "1000"
-                - --autoscale
-                - --autoscale-min-worker
-                - "1"
-                - --autoscale-max-worker
-                - "8"
-                - --autoscale-delta-worker
-                - "1"
-                - --autoscale-efficiency-threshold
-                #- "-999"
-                - "0.01"
-                - --autoscale-throughput-average-batches
-                - "10"
+#                - --autoscale
+#                - --autoscale-min-worker
+#                - "1"
+#                - --autoscale-max-worker
+#                - "8"
+#                - --autoscale-delta-worker
+#                - "1"
+#                - --autoscale-efficiency-threshold
+#                - "0.01"
+#                - --autoscale-throughput-average-batches
+#                - "10"
               resources:
                 limits:
                   cpu: 1
                   memory: 2Gi
           serviceAccountName: ml-autoscaling
     Worker:
-      replicas: 2
+      replicas: 1
       template:
         spec:
           containers:
-            - image: us-central1-docker.pkg.dev/ml-autoscaling/ml-autoscaling-image-registry/horovod:v0.1.39-autoscale-cpu
+            - image: localhost:32000/horovod:v0.1.45-autoscale-cpu
               name: mpi-worker
+              volumeMounts:
+                - name: my-persistent-volume
+                  mountPath: /root/.keras/datasets
               resources:
                 limits:
                   cpu: 1
                   memory: 2Gi
+          volumes:
+            - name: my-persistent-volume
+              persistentVolumeClaim:
+                # specify PVC name you defined
+                claimName: mnist-pvc
           serviceAccountName: ml-autoscaling

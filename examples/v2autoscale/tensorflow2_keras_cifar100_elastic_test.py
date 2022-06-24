@@ -58,7 +58,7 @@ if gpus:
     tf.config.experimental.set_visible_devices(gpus[hvd.local_rank()], 'GPU')
 
 (mnist_images, mnist_labels), _ = \
-    tf.keras.datasets.mnist.load_data(path='mnist-%d.npz' % hvd.rank())
+    tf.keras.datasets.cifar100.load_data(label_mode="fine", path='mnist-%d.npz' % hvd.rank())
 
 tf.random.set_seed(13517119)
 batch_size = 128
